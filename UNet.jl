@@ -1,11 +1,4 @@
-include("./data.jl")
-using Flux, CuArrays, Zygote
-using Flux: @treelike
-
-imgpaths = loadimgpaths("./data/train-test/dicom-images-train")
-csv = CSV.read("./data/train-test/train-rle.csv")
-
-loader = dataloader(imgpaths[1:200], csv, 2, imsize=(256, 256))
+# heavily inspired by https://github.com/FluxML/model-zoo/blob/49da0b187c339687040923c8f0f2749a4e229c64/vision/carvana%20image%20masking/unet.jl
 
 # function centercrop(x, target_size)
 #     start_size = ((size(x)[[1, 2]] .- target_size) .÷ 2 .+ 1)
@@ -74,22 +67,13 @@ function (m::UNet)(x)
     return(x)
 end
 
-Flux.gradient((model)->sum(model(input)), model)
-
 model = UNet()|>gpu
 
 input = rand(256,256,1,1)|>gpu
 
 @time model(input)
+
 Zygote.refresh()
 @time Flux.gradient(model) do model
     sum(model(input))
 end
-
-Flux.gradient((model)->sum(model(input)), model)
-
-A = rand(10,20)
-
-hcat(A, rand(10,30))
-
-A

@@ -5,10 +5,10 @@
 #     x[start_size[1]:(start_size[1] + target_size[1] - 1), start_size[2]:(start_size[2] + target_size[2] - 1), :, :]
 # end
 
-using Flux, CuArrays
+using Flux, CuArrays, Zygote
 using Flux: @treelike
 
-Flux.@adjoint function cat(A::AbstractArray...; dims::Int)
+Zygote.@adjoint function cat(A::AbstractArray...; dims::Int)
     sz = cumsum([size.(A, dims)...])
     return cat(A...; dims=dims), Δ->(map(n->Δ[fill(Colon(), dims - 1)..., sz[n]-size(A[n], dims)+1:sz[n], fill(Colon(), ndims(A[n]) - dims)...], eachindex(A))...,)
 end
@@ -71,7 +71,7 @@ model = UNet()|>gpu
 
 input = rand(256,256,1,1)|>gpu
 
-@time model(input)
+# @time model(input)
 
 Zygote.refresh()
 @time Flux.gradient(model) do model

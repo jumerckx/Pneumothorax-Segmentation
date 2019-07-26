@@ -1,5 +1,5 @@
 include("./data.jl")
-using Flux, CuArrays
+using Flux, CuArrays, Zygote
 using Flux: @treelike
 
 imgpaths = loadimgpaths("./data/train-test/dicom-images-train")
@@ -21,27 +21,24 @@ Flux.@adjoint function cat(A::AbstractArray...; dims::Int)
 end
 
 ConvBlock(ch::Pair{<:Integer,<:Integer}, σ = relu; pad=1, kwargs...) = Chain(
-    Conv((3,3), ch, identity, pad=pad, kwargs...), Conv((3,3), ch[2]=>ch[2], identity, pad=pad, kwargs...)
-)
+    Conv((3,3), ch, identity, pad=pad, kwargs...),
+    Conv((3,3), ch[2]=>ch[2], identity, pad=pad, kwargs...))
 
 ConvUpBlock(ch::Pair{<:Integer,<:Integer}, σ=relu; pad=1, kwargs...) = Chain(
     ConvTranspose((2,2), ch, stride=(2,2)),
-    ConvBlock(ch, σ; pad=pad, kwargs...)...
-)
+    ConvBlock(ch, σ; pad=pad, kwargs...)...)
 
 contraction() = Chain(
     ConvBlock(1=>16, relu),
     ConvBlock(16=>32, relu),
     ConvBlock(32=>64, relu),
-    ConvBlock(64=>128, relu)
-)
+    ConvBlock(64=>128, relu))
 
 expansion() = Chain(
     ConvUpBlock(256=>128, relu),
     ConvUpBlock(128=>64, relu),
     ConvUpBlock(64=>32, relu),
-    ConvUpBlock(32=>16, relu)
-)
+    ConvUpBlock(32=>16, relu))
 
 struct UNet
     contraction
@@ -57,16 +54,14 @@ UNet() = UNet(
     MaxPool((2,2)),
     ConvBlock(128=>256, relu),
     expansion(),
-    Conv((1, 1), 16=>1, sigmoid)
-)
+    Conv((1, 1), 16=>1))
 
 function (m::UNet)(x)
     intermediary = []
     for (i, block) in enumerate(m.contraction)
         x = block(x)
-        println("1")
         intermediary = [intermediary; [x]]
-        println("2")
+        # push!(intermediary, x)
         x = m.pool(x)
     end
     x = m.connector(x)
@@ -79,13 +74,22 @@ function (m::UNet)(x)
     return(x)
 end
 
+Flux.gradient((model)->sum(model(input)), model)
+
 model = UNet()|>gpu
 
-input = first(loader)[1]|>gpu
+input = rand(256,256,1,1)|>gpu
 
 @time model(input)
-
-
+Zygote.refresh()
 @time Flux.gradient(model) do model
     sum(model(input))
 end
+
+Flux.gradient((model)->sum(model(input)), model)
+
+A = rand(10,20)
+
+hcat(A, rand(10,30))
+
+A

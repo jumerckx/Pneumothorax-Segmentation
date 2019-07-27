@@ -53,15 +53,14 @@ function (m::UNet)(x)
     intermediary = []
     for (i, block) in enumerate(m.contraction)
         x = block(x)
-        intermediary = [intermediary; [x]]
-        # push!(intermediary, x)
+        push!(intermediary, x)
         x = m.pool(x)
     end
     x = m.connector(x)
     for (i, block) in enumerate(m.expansion)
         x = block[1](x)
         x = cat(x, intermediary[5-i], dims=3)
-        x = block[2:3](x)
+        x = x |> block[2] |> block[3]
     end
     x = m.out(x)
     return(x)
@@ -71,9 +70,9 @@ model = UNet()|>gpu
 
 input = rand(256,256,1,1)|>gpu
 
-# @time model(input)
+@time model(input)
 
 Zygote.refresh()
-@time Flux.gradient(model) do model
+@time Zygote.gradient(model) do model
     sum(model(input))
 end
